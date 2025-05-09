@@ -1,0 +1,644 @@
+﻿﻿﻿<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Animetronic - HackMyVM - Easy - Bericht</title> <!-- Titel angepasst -->
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="../../horizontale-navbar.css">
+    <link href="https://fonts.googleapis.com/css?family=Lato:300,400,700&display=swap" rel="stylesheet">
+</head>
+ <body>
+ 
+    <!-- Header angepasst: Hintergrundfarbe wird durch CSS gesteuert (#03b5f5), Schwierigkeitsgrad und Farbe angepasst -->
+    <div class="header-bg">
+        <h1>Animetronic - HackMyVM - Easy - Bericht</h1>
+        <div class="level-container">
+            <!-- Inline-Style entfernt, Farbe Rot wird durch CSS gesteuert (gemäß vorheriger Anweisung) -->
+            <h2>Easy</h2>
+            <div class="circle">
+                <!-- Segmente für Rot (Easy laut Anforderung) -->
+                <div class="segment segment-1"></div>
+                <div class="segment segment-2"></div>
+                <div class="segment segment-3"></div>
+                <!-- Inline-Style entfernt, Hintergrundfarbe wird durch CSS gesteuert (#03b5f5) -->
+                <div class="inner"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <section class="tools-used">
+            <h2>Verwendete Tools</h2>
+            <div class="tools-grid">
+                <!-- Tools aus dem Bericht extrahiert -->
+                <div class="tool-item">arp-scan</div>
+                <div class="tool-item">vi</div>
+                <div class="tool-item">nmap</div>
+                <div class="tool-item">nikto</div>
+                <div class="tool-item">dirb</div>
+                <div class="tool-item">echo</div>
+                <div class="tool-item">Metasploit (msfconsole)</div>
+                <div class="tool-item">ssh</div>
+                <div class="tool-item">curl</div>
+                <div class="tool-item">katana</div>
+                <div class="tool-item">cupp</div>
+                <div class="tool-item">hydra</div>
+                <div class="tool-item">cat</div>
+            </div>
+        </section>
+
+        <section class="toc">
+            <h2>Inhaltsverzeichnis</h2>
+            <ul>
+                <!-- Inhaltsverzeichnis gemäß Struktur -->
+                <li><a href="#reconnaissance">Reconnaissance</a></li>
+                <li><a href="#web-enumeration">Web Enumeration</a></li>
+                <li><a href="#initial-access">Initial Access</a></li>
+                <li><a href="#proof-of-concept">Proof of Concept</a></li>
+                <li><a href="#privilege-escalation">Privilege Escalation</a></li>
+                <li><a href="#flags">Flags</a></li>
+            </ul>
+        </section>
+
+        <section id="reconnaissance">
+            <h2>Reconnaissance</h2>
+            <p class="analysis"><strong>Analyse:</strong> Der Pentest beginnt mit einem ARP-Scan (`arp-scan -l`) im lokalen Netzwerk, um aktive Geräte zu finden. ARP (Address Resolution Protocol) dient der Zuordnung von IP- zu MAC-Adressen im lokalen Netz.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Ein Gerät mit der IP `192.168.2.104` und der MAC-Adresse `08:00:27:90:8f:aa` wurde identifiziert. Der Hersteller (PCS Systemtechnik GmbH) ist oft mit Oracle VirtualBox assoziiert. Dies ist unser Zielsystem "Animetronic".</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Die Ziel-IP `192.168.2.104` ist nun bekannt und bildet die Grundlage für weitere Scans.<br><strong>Empfehlung (Admin):</strong> Überwachen Sie das Netzwerk auf ARP-Scans (z.B. mit `arpwatch`). Implementieren Sie Netzwerksegmentierung, um die Reichweite solcher Scans zu begrenzen.</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">arp-scan -l</span></div>
+                    <pre>
+192.168.2.104	08:00:27:90:8f:aa	PCS Systemtechnik GmbH
+                    </pre>
+                </div>
+            </div>
+
+            <p class="analysis"><strong>Analyse:</strong> Die lokale `/etc/hosts`-Datei wird mit dem Texteditor `vi` bearbeitet, um der IP-Adresse `192.168.2.104` den Hostnamen `animetronic.hmv` zuzuweisen. Dies erleichtert die Verwendung des Ziels in nachfolgenden Befehlen.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Die Zuordnung ist erfolgreich. Statt der IP kann nun der leichter merkbare Hostname verwendet werden, was die Lesbarkeit und Handhabung verbessert.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Nutzen Sie den definierten Hostnamen für alle weiteren Interaktionen mit dem Ziel.<br><strong>Empfehlung (Admin):</strong> Diese lokale Änderung auf dem Angreifer-System hat keine direkten Auswirkungen auf das Zielsystem. Generell ist eine zentrale DNS-Verwaltung zu bevorzugen.</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">vi /etc/hosts</span></div>
+                    <pre>
+127.0.0.1	localhost
+192.168.2.104   animetronic.hmv
+                    </pre>
+                </div>
+            </div>
+
+            <p class="analysis"><strong>Analyse:</strong> Ein Nmap-Scan wird gestartet, um offene Ports und Dienste auf dem Ziel zu identifizieren.
+                *   `-sS`: SYN Scan (Stealth Scan).
+                *   `-sV`: Service/Versionserkennung.
+                *   `-A`: Aktiviert OS-Erkennung, Versionserkennung, Skript-Scanning und Traceroute. (Anmerkung: Die Option `-O` für OS-Erkennung ist in `-A` enthalten).
+                *   `-T5`: Sehr aggressives Timing für schnellen Scan.
+                *   `192.168.2.104`: Ziel-IP.
+                *   `-p-`: Scannt alle 65535 TCP-Ports.
+                *   `| grep open`: Filtert die Ausgabe, um nur offene Ports anzuzeigen.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Der Scan identifiziert zwei offene TCP-Ports: Port 22 (SSH - OpenSSH 8.9p1 auf Ubuntu) und Port 80 (HTTP - Apache httpd 2.4.52 auf Ubuntu). Diese Dienste sind die primären Angriffsvektoren.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Konzentrieren Sie die weiteren Bemühungen auf SSH (Brute-Force, bekannte Schwachstellen für Version 8.9p1) und HTTP (Webseiten-Enumeration, Schwachstellensuche).<br><strong>Empfehlung (Admin):</strong> Stellen Sie sicher, dass nur notwendige Ports offen sind. Halten Sie SSH und Apache auf dem neuesten Stand. Konfigurieren Sie Dienste sicher (z.B. starke SSH-Passwörter/Keys, sichere Apache-Konfiguration).</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">nmap -sS -sV -A -T5 192.168.2.104 -p- | grep open</span></div>
+                    <pre>
+22/tcp open  ssh     OpenSSH 8.9p1 Ubuntu 3ubuntu0.4 (Ubuntu Linux; protocol 2.0)
+80/tcp open  http    Apache httpd 2.4.52 ((Ubuntu))
+                    </pre>
+                </div>
+            </div>
+
+             <p class="analysis"><strong>Analyse:</strong> Derselbe Nmap-Scan wird erneut ausgeführt, diesmal jedoch ohne den `grep`-Filter, um die vollständige Ausgabe zu erhalten.</p>
+             <p class="evaluation"><strong>Bewertung:</strong> Die detaillierte Ausgabe bestätigt die offenen Ports 22 (SSH) und 80 (HTTP) sowie die Dienstversionen. Sie liefert zusätzliche Details wie die SSH-Hostkeys, den HTTP-Seitentitel ("Animetronic"), den Server-Header und eine genauere Einschätzung des Betriebssystems (Linux 4.x/5.x). Die MAC-Adresse bestätigt, dass es sich um eine VirtualBox VM handelt. Traceroute zeigt eine direkte Verbindung (1 Hop).</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Die Versionsinformationen (OpenSSH 8.9p1, Apache 2.4.52 auf Ubuntu) sind wertvoll für die gezielte Suche nach bekannten Schwachstellen (CVEs). Der Seitentitel "Animetronic" gibt einen thematischen Hinweis.<br><strong>Empfehlung (Admin):</strong> Überprüfen Sie, ob die exponierten Versionen von SSH und Apache bekannte, ungepatchte Schwachstellen aufweisen und aktualisieren Sie sie gegebenenfalls. Minimieren Sie die preisgegebenen Informationen (z.B. detaillierte Server-Header).</p>
+           <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">nmap -sS -sV -A -T5 192.168.2.104 -p-</span></div>
+                    <pre>
+Starting Nmap 7.94SVN ( https://nmap.org ) at 2023-12-11 12:02 CET
+Nmap scan report for animetronic.hmv (192.168.2.104)
+Host is up (0.00011s latency).
+Not shown: 65533 closed tcp ports (reset)
+PORT   STATE SERVICE VERSION
+22/tcp open  ssh     OpenSSH 8.9p1 Ubuntu 3ubuntu0.4 (Ubuntu Linux; protocol 2.0)
+| ssh-hostkey:
+|   256 59:eb:51:67:e5:6a:9e:c1:4c:4e:c5:da:cd:ab:4c:eb (ECDSA)
+|_  256 96:da:61:17:e2:23:ca:70:19:b5:3f:53:b5:5a:02:59 (ED25519)
+80/tcp open  http    Apache httpd 2.4.52 ((Ubuntu))
+|_http-title: Animetronic
+|_http-server-header: Apache/2.4.52 (Ubuntu)
+MAC Address: 08:00:27:90:8F:AA (Oracle VirtualBox virtual NIC)
+Device type: general purpose
+Running: Linux 4.X|5.X
+OS CPE: cpe:/o:linux:linux_kernel:4 cpe:/o:linux:linux_kernel:5
+OS details: Linux 4.15 - 5.8
+Network Distance: 1 hop
+Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
+
+TRACEROUTE
+HOP RTT     ADDRESS
+1   0.11 ms animetronic.hmv (192.168.2.104)
+
+OS and Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
+Nmap done: 1 IP address (1 host up) scanned in 13.84 seconds
+                    </pre>
+                </div>
+            </div>
+        </section>
+
+        <section id="web-enumeration">
+            <h2>Web Enumeration</h2>
+            <p class="analysis"><strong>Analyse:</strong> Der Webserver-Scanner `nikto` wird auf das Ziel `192.168.2.104` (Port 80) angesetzt, um nach bekannten Web-Schwachstellen, Fehlkonfigurationen und interessanten Dateien/Verzeichnissen zu suchen.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Nikto bestätigt den Apache/2.4.52 (Ubuntu) Server. Es meldet erneut fehlende Sicherheitsheader (`X-Frame-Options`, `X-Content-Type-Options`), die potenziell Clickjacking und MIME-Sniffing ermöglichen. Es weist auf ein mögliches Informationsleck durch ETags hin (CVE-2003-1418), bei dem Inodes des Dateisystems preisgegeben werden könnten. Außerdem wird angemerkt, dass die Apache-Version veraltet ist. Die erlaubten HTTP-Methoden (GET, POST, OPTIONS, HEAD) werden ebenfalls identifiziert. Es wurden keine CGI-Verzeichnisse gefunden.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Die fehlenden Header und die veraltete Apache-Version sind gute Ansatzpunkte für weitere Recherchen nach Exploits. Das ETag-Leak ist meist von geringem Risiko, kann aber notiert werden. Die erlaubten Methoden sind Standard und bieten keinen direkten Angriffsvektor.<br><strong>Empfehlung (Admin):</strong> Implementieren Sie die fehlenden Sicherheitsheader in der Apache-Konfiguration. Aktualisieren Sie den Apache-Webserver auf eine aktuelle, gepatchte Version. Deaktivieren Sie die ETag-Generierung oder konfigurieren Sie sie so, dass sie keine Inodes preisgibt (z.B. `FileETag MTime Size` in Apache).</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">nikto -h 192.168.2.104</span></div>
+                    <pre>
+- Nikto v2.5.0
+---------------------------------------------------------------------------
++ Target IP:          192.168.2.104
++ Target Hostname:    192.168.2.104
++ Target Port:        80
++ Start Time:         2023-12-11 12:03:06 (GMT1)
+---------------------------------------------------------------------------
++ Server: Apache/2.4.52 (Ubuntu)
++ /: The anti-clickjacking X-Frame-Options header is not present. See: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Frame-Options
++ /: The X-Content-Type-Options header is not set. This could allow the user agent to render the content of the site in a different fashion to the MIME type. See: https://www.netsparker.com/web-vulnerability-scanner/vulnerabilities/missing-content-type-header/
++ No CGI Directories found (use '-C all' to force check all possible dirs)
++ /: Server may leak inodes via ETags, header found with file /, inode: 950, size: 60b24a4fb461c, mtime: gzip. See: http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2003-1418
++ Apache/2.4.52 appears to be outdated (current is at least Apache/2.4.54). Apache 2.2.34 is the EOL for the 2.x branch.
++ OPTIONS: Allowed HTTP Methods: GET, POST, OPTIONS, HEAD .
++ 8103 requests: 0 error(s) and 5 item(s) reported on remote host
++ End Time:           2023-12-11 12:03:19 (GMT1) (13 seconds)
+---------------------------------------------------------------------------
++ 1 host(s) tested
+                    </pre>
+                </div>
+            </div>
+
+            <p class="analysis"><strong>Analyse:</strong> Das Tool `dirb` wird verwendet, um nach versteckten Verzeichnissen und Dateien auf dem Webserver `http://animetronic.hmv/` zu suchen. Es verwendet eine Standard-Wortliste (implizit, da keine `-w`-Option angegeben).</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Dirb findet die Standardverzeichnisse `/css/`, `/img/` und `/js/`, die üblicherweise für Webseiten-Assets verwendet werden. Es findet auch die Startdatei `/index.html`. In diesem ersten Durchlauf werden keine ungewöhnlichen oder versteckten Verzeichnisse aufgedeckt.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Untersuchen Sie den Inhalt der gefundenen Standardverzeichnisse und der `index.html`. Führen Sie ggf. weitere Scans mit umfangreicheren Wortlisten oder anderen Tools (wie Gobuster, ffuf) durch, um sicherzustellen, dass nichts übersehen wurde.<br><strong>Empfehlung (Admin):</strong> Stellen Sie sicher, dass keine sensiblen Informationen in den Asset-Verzeichnissen liegen. Deaktivieren Sie Verzeichnisauflistungen (Directory Listing) im Webserver.</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">dirb http://animetronic.hmv</span></div>
+                    <pre>
+==> DIRECTORY: http://animetronic.hmv/css/
+==> DIRECTORY: http://animetronic.hmv/img/
+==> DIRECTORY: http://animetronic.hmv/js/
++ http://animetronic.hmv/index.html (CODE:200|SIZE:2384)
+                    </pre>
+                </div>
+            </div>
+
+            <p class="analysis"><strong>Analyse:</strong> Mit dem `echo`-Befehl wird eine kleine lokale Datei namens `users.txt` erstellt. Sie enthält drei potenzielle Benutzernamen (`mike`, `abby`, `freddy`), jeweils in einer neuen Zeile (`\n`).</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Diese Datei dient als Eingabe für nachfolgende Enumerations- oder Brute-Force-Tools, um gezielt diese Benutzernamen zu testen. Die Namen stammen vermutlich aus dem Kontext der Maschine (Five Nights at Freddy's).</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Verwenden Sie diese Datei für Tools wie `hydra` oder Metasploit-Module, die eine Benutzerliste als Eingabe akzeptieren.<br><strong>Empfehlung (Admin):</strong> Dies ist eine Aktion auf dem Angreifer-System. Generell sollten Benutzernamen nicht leicht zu erraten oder öffentlich bekannt sein.</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">echo 'mike\nabby\nfreddy\n' > users.txt</span></div>
+                    <pre></pre> <!-- Echo gibt standardmäßig nichts auf stdout aus, wenn in Datei umgeleitet wird -->
+                </div>
+            </div>
+
+            <p class="analysis"><strong>Analyse:</strong> Innerhalb des Metasploit Frameworks (`msfconsole`) wird nach Modulen gesucht, die zur SSH-Benutzer-Enumeration verwendet werden können (`search ssh enum user`). Das Modul `auxiliary/scanner/ssh/ssh_enumusers` (Index 3) wird ausgewählt (`use 3`). Anschließend werden die Optionen des Moduls angezeigt (`options`), die Ziel-IP (`set rhosts 192.168.2.104`) und die zuvor erstellte Benutzerdatei (`set user_file users.txt`) konfiguriert. Schließlich wird das Modul gestartet (`run`).</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Das Modul `ssh_enumusers` nutzt verschiedene Techniken (hier: Malformed Packet oder Timing-Attacke), um zu prüfen, ob Benutzernamen auf einem SSH-Server existieren, ohne sich tatsächlich einzuloggen. Es findet erfolgreich die Benutzer `<span class="password">mike</span>` und `<span class="password">abby</span>` als valide auf dem Zielsystem. Der Benutzer `freddy` wird nicht als valide erkannt.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Die validen Benutzernamen `mike` und `abby` sind wertvolle Informationen. Konzentrieren Sie Brute-Force-Angriffe auf diese beiden Benutzer. Seien Sie sich bewusst, dass SSH-Enumerationstechniken manchmal unzuverlässig sein können oder durch Serverkonfigurationen verhindert werden.<br><strong>Empfehlung (Admin):</strong> Konfigurieren Sie den SSH-Server so, dass Benutzer-Enumeration erschwert wird (z.B. durch generische Fehlermeldungen, Verzögerungen oder Tools wie `fail2ban`). Vermeiden Sie leicht zu erratende Benutzernamen.</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt metasploit-prompt">msf6 > <span class="command">search ssh enum user</span></div>
+                    <pre>
+Matching Modules
+================
+
+   #  Name                                           Disclosure Date  Rank    Check  Description
+   -  ----                                           ---------------  ----    -----  -----------
+   0  auxiliary/scanner/ssh/cerberus_sftp_enumusers  2014-05-27       normal  No     Cerberus FTP Server SFTP Username Enumeration
+   1  auxiliary/scanner/http/gitlab_user_enum        2014-11-21       normal  No     GitLab User Enumeration
+   2  post/windows/gather/enum_putty_saved_sessions                   normal  No     PuTTY Saved Sessions Enumeration Module
+   3  auxiliary/scanner/ssh/ssh_enumusers                             normal  No     SSH Username Enumeration
+
+
+Interact with a module by name or index. For example info 3, use 3 or use auxiliary/scanner/ssh/ssh_enumusers
+                    </pre>
+                    <div class="prompt metasploit-prompt">msf6 > <span class="command">use 3</span></div>
+                    <div class="prompt metasploit-prompt">msf6 auxiliary(scanner/ssh/ssh_enumusers) > <span class="command">options</span></div>
+                    <pre>
+
+Module options (auxiliary/scanner/ssh/ssh_enumusers):
+
+   Name          Current Setting  Required  Description
+   ----          ---------------  --------  -----------
+   CHECK_FALSE   true             no        Check for false positives (random username)
+   DB_ALL_USERS  false            no        Add all users in the current database to the lis
+                                            t
+   Proxies                        no        A proxy chain of format type:host:port[,type:hos
+                                            t:port][...]
+   RHOSTS                         yes       The target host(s), see https://docs.metasploit.
+                                            com/docs/using-metasploit/basics/using-metasploi
+                                            t.html
+   RPORT         22               yes       The target port
+   THREADS       1                yes       The number of concurrent threads (max one per ho
+                                            st)
+   THRESHOLD     10               yes       Amount of seconds needed before a user is consid
+                                            ered found (timing attack only)
+   USERNAME                       no        Single username to test (username spray)
+   USER_FILE                      no        File containing usernames, one per line
+
+
+Auxiliary action:
+
+   Name              Description
+   ----              -----------
+   Malformed Packet  Use a malformed packet
+
+
+
+View the full module info with the info, or info -d command.
+                    </pre>
+                    <div class="prompt metasploit-prompt">msf6 auxiliary(scanner/ssh/ssh_enumusers) > <span class="command">set rhosts 192.168.2.104</span></div>
+                    <pre>rhosts => 192.168.2.104</pre>
+                    <div class="prompt metasploit-prompt">msf6 auxiliary(scanner/ssh/ssh_enumusers) > <span class="command">set user_file users.txt</span></div>
+                    <pre>user_file => users.txt</pre>
+                    <div class="prompt metasploit-prompt">msf6 auxiliary(scanner/ssh/ssh_enumusers) > <span class="command">run</span></div>
+                    <pre>
+[*] 192.168.2.104:22 - SSH - Using malformed packet technique
+[*] 192.168.2.104:22 - SSH - Checking for false positives
+[*] 192.168.2.104:22 - SSH - Starting scan
+[+] 192.168.2.104:22 - SSH - User 'mike' found
+[+] 192.168.2.104:22 - SSH - User 'abby' found
+[*] Auxiliary module execution completed
+                    </pre>
+                </div>
+            </div>
+
+            <p class="analysis"><strong>Analyse:</strong> Es wird versucht, sich per SSH als Benutzer `vanessa` auf dem Zielsystem anzumelden. Der Benutzername `vanessa` tauchte in der manuell erstellten Liste weiter unten im Bericht auf, wurde aber nicht durch das Metasploit-Modul validiert.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Der Login-Versuch schlägt fehl (`Permission denied`). Dies deutet darauf hin, dass entweder der Benutzername `vanessa` nicht existiert oder das eingegebene (nicht sichtbare) Passwort falsch ist.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Konzentrieren Sie sich auf die durch Metasploit validierten Benutzernamen (`mike`, `abby`) oder andere, die durch weitere Enumeration gefunden werden. Vermeiden Sie unbestätigte Benutzernamen für Brute-Force-Angriffe, um Zeit zu sparen.<br><strong>Empfehlung (Admin):</strong> Stellen Sie sicher, dass fehlgeschlagene Login-Versuche protokolliert und überwacht werden. Nutzen Sie Tools wie `fail2ban`, um wiederholte Fehlversuche zu blockieren.</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">ssh vanessa@192.168.2.104</span></div>
+                    <pre>
+The authenticity of host '192.168.2.104 (192.168.2.104)' can't be established.
+ED25519 key fingerprint is SHA256:6amN4h/EjKiHufTd7GABl99uFy+fsL6YXJJRDyzxjGE.
+This key is not known by any other names.
+Are you sure you want to continue connecting (yes/no/[fingerprint])? yes
+Warning: Permanently added '192.168.2.104' (ED25519) to the list of known hosts.
+vanessa@192.168.2.104's password:
+Permission denied, please try again.
+vanessa@192.168.2.104's password:
+                    </pre>
+                </div>
+            </div>
+
+            <p class="analysis"><strong>Analyse:</strong> Der Befehl `curl -v -X OPTIONS http://192.168.2.104` sendet eine HTTP OPTIONS-Anfrage an den Webserver, um die unterstützten HTTP-Methoden abzufragen. `-v` sorgt für eine ausführliche Ausgabe, `-X OPTIONS` spezifiziert die Methode.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Der Server antwortet mit `200 OK` und dem Header `Allow: GET,POST,OPTIONS,HEAD`. Dies bestätigt die von Nikto gefundenen erlaubten Methoden. Es handelt sich um Standardmethoden.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Diese Information ist nützlich zur Bestätigung, bietet aber keinen direkten Angriffsvektor. Manchmal können unsichere Methoden wie PUT oder DELETE aktiviert sein, was hier nicht der Fall ist.<br><strong>Empfehlung (Admin):</strong> Stellen Sie sicher, dass nur die für die Webanwendung notwendigen HTTP-Methoden aktiviert sind. Deaktivieren Sie unsichere oder ungenutzte Methoden.</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">curl -v -X OPTIONS http://192.168.2.104</span></div>
+                    <pre>
+*   Trying 192.168.2.104:80...
+* Connected to 192.168.2.104 (192.168.2.104) port 80
+> OPTIONS / HTTP/1.1
+> Host: 192.168.2.104
+> User-Agent: curl/8.4.0
+> Accept: */*
+>
+< HTTP/1.1 200 OK
+< Date: Mon, 11 Dec 2023 13:12:34 GMT
+< Server: Apache/2.4.52 (Ubuntu)
+< Allow: GET,POST,OPTIONS,HEAD
+< Content-Length: 0
+< Content-Type: text/html
+<
+* Connection #0 to host 192.168.2.104 left intact
+                    </pre>
+                </div>
+            </div>
+
+            <p class="analysis"><strong>Analyse:</strong> Ein weiterer Nmap-Scan wird durchgeführt, diesmal mit der Option `--script vuln`, um gezielt nach bekannten Schwachstellen mit Hilfe der Nmap Scripting Engine (NSE) zu suchen. Der Scan zielt auf alle Ports (`-p-`) des Hosts `animetronic.hmv`.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Die Ergebnisse sind begrenzt. Das Skript `broadcast-avahi-dos` prüft auf eine DoS-Schwachstelle in Avahi, findet aber keine Anfälligkeit. Auf Port 80 (HTTP) werden keine DOM-basierten XSS, Stored XSS, CSRF-Schwachstellen oder einfache File-Upload-Exploits durch die Standard-`vuln`-Skripte gefunden.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Die NSE-`vuln`-Skripte decken nur einen Teil möglicher Schwachstellen ab. Verlassen Sie sich nicht ausschließlich darauf. Setzen Sie spezialisierte Web-Scanner (wie Nikto, Burp Suite, OWASP ZAP) und manuelle Tests ein. Führen Sie ggf. weitere NSE-Skriptkategorien aus (z.B. `default`, `discovery`, `exploit`).<br><strong>Empfehlung (Admin):</strong> Regelmäßige Schwachstellen-Scans sind gut, sollten aber durch umfassendere Sicherheitsprüfungen ergänzt werden. Patchen Sie bekannte Schwachstellen proaktiv.</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">nmap --script vuln -p- animetronic.hmv</span></div>
+                    <pre>
+Starting Nmap 7.94SVN ( https://nmap.org ) at 2023-12-11 14:10 CET
+Pre-scan script results:
+| broadcast-avahi-dos:
+|   Discovered hosts:
+|     224.0.0.251
+|   After NULL UDP avahi packet DoS (CVE-2011-1002).
+|_  Hosts are all up (not vulnerable).
+Nmap scan report for animetronic.hmv (192.168.2.104)
+Host is up (0.00012s latency).
+Not shown: 65533 closed tcp ports (reset)
+PORT   STATE SERVICE
+22/tcp open  ssh
+80/tcp open  http
+|_http-dombased-xss: Couldn't find any DOM based XSS.
+|_http-stored-xss: Couldn't find any stored XSS vulnerabilities.
+|_http-csrf: Couldn't find any CSRF vulnerabilities.
+| http-fileupload-exploiter:
+|
+|     Couldn't find a file-type field.
+|
+|_    Couldn't find a file-type field.
+MAC Address: 08:00:27:90:8F:AA (Oracle VirtualBox virtual NIC)
+
+Nmap done: 1 IP address (1 host up) scanned in 56.73 seconds
+                    </pre>
+                </div>
+            </div>
+
+            <p class="analysis"><strong>Analyse:</strong> Das Tool `katana` wird eingesetzt, ein Web-Crawler/Spider, um die Webseite `http://animetronic.hmv/` zu durchsuchen und Endpunkte zu entdecken. `-jc` sucht nach JavaScript-Dateien, `-d 2` setzt die Crawling-Tiefe auf 2, `-o katana2.txt` speichert die Ausgabe in einer Datei.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Katana findet die Startseite und die bereits bekannten Standard-Assets (`animetronic.css`, `jquery-slim.min.js`, `bootstrap.min.css`). Es werden keine neuen, versteckten Endpunkte oder Verzeichnisse durch diesen Crawl aufgedeckt.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Kombinieren Sie die Ergebnisse verschiedener Crawler und Brute-Force-Tools. Erhöhen Sie ggf. die Crawling-Tiefe oder verwenden Sie andere Tools (z.B. GoSpider), um sicherzustellen, dass alle Bereiche der Webseite erfasst wurden.<br><strong>Empfehlung (Admin):</strong> Stellen Sie sicher, dass die `robots.txt`-Datei (falls vorhanden) keine sensiblen Pfade preisgibt, die von Crawlern ignoriert werden sollen. Überwachen Sie Web-Logs auf intensive Crawling-Aktivitäten.</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">katana -u http://animetronic.hmv/ -jc -d 2 -o katana2.txt</span></div>
+                    <pre>
+
+   __        __
+  / /_____ _/ /____ ____  ___ _
+ /  '_/ _  / __/ _  / _ \/ _  /
+/_/\_\\_,_/\__/\_,_/_//_/\_,_/
+
+                projectdiscovery.io
+
+[INF] Current katana version v1.0.4 (latest)
+[INF] Started standard crawling for => http://animetronic.hmv/
+http://animetronic.hmv/
+http://animetronic.hmv/css/animetronic.css
+http://animetronic.hmv/js/jquery-slim.min.js
+http://animetronic.hmv/css/bootstrap.min.css
+                    </pre>
+                </div>
+            </div>
+
+            <p class="analysis"><strong>Analyse:</strong> Ein weiterer manueller SSH-Login-Versuch, diesmal für den Benutzer `jumbotron` mit dem Passwort `jumbotron`. Dieser Benutzername taucht ebenfalls in der späteren manuellen Liste auf.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Der Versuch scheitert (`Permission denied`). Dies ist ein typischer Versuch mit einem Benutzernamen als Passwort, der hier nicht erfolgreich ist.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Vermeiden Sie einfache Benutzernamen/Passwort-Kombinationen, es sei denn, es gibt Hinweise darauf. Konzentrieren Sie sich auf validierte Benutzernamen und systematische Passwortangriffe.<br><strong>Empfehlung (Admin):</strong> Erzwingen Sie komplexe Passwörter und verbieten Sie die Verwendung von Benutzernamen als Passwörter.</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">ssh jumbotron@192.168.2.104</span></div>
+                    <pre>
+jumbotron@192.168.2.104's password: jumbotron
+Permission denied, please try again.
+                    </pre>
+                 </div>
+            </div>
+
+            <p class="analysis"><strong>Analyse:</strong> Diese Sektion scheint eine manuelle Notiz oder das Ergebnis von OSINT (Open Source Intelligence) zu sein. Es wird ein Hinweis auf "Freddy Fazbear’s Pizza" und ein Wikipedia-Link zum Film "Five Nights at Freddy's" genannt. Dies liefert Kontext zum Thema der Maschine.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Die Information bestätigt das Thema und liefert eine Quelle für potenzielle Benutzernamen und Passwörter, die im Zusammenhang mit dem Franchise stehen könnten.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Nutzen Sie diesen thematischen Kontext, um gezielte Wortlisten für Benutzernamen und Passwörter zu erstellen (Charakternamen, Orte, Begriffe aus dem Spiel/Film).<br><strong>Empfehlung (Admin):</strong> Seien Sie sich bewusst, dass thematische Bezüge einer Organisation oder eines Systems für Angreifer nützlich sein können, um Passwörter zu erraten.</p>
+            <div class="code-block">
+                 <div class="terminal">
+                     <pre>
+infoscrawling
+Freddy Fazbear’s Pizza --> https://de.wikipedia.org/wiki/Five_Nights_at_Freddy%E2%80%99s_(Film)
+                     </pre>
+                 </div>
+            </div>
+
+            <p class="analysis"><strong>Analyse:</strong> Hier wurde manuell eine Liste von potenziellen Benutzernamen erstellt, die wahrscheinlich aus dem "Five Nights at Freddy's"-Kontext (siehe vorheriger Schritt) stammen.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Diese Liste ist eine gute Grundlage für weitere Enumerations- und Brute-Force-Versuche, insbesondere für Benutzer, die nicht durch technische Scans (wie `ssh_enumusers`) gefunden wurden.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Testen Sie diese Benutzernamen systematisch gegen den SSH-Dienst, z.B. mit Hydra oder durch manuelle Versuche (falls die Anzahl gering ist). Kombinieren Sie diese Liste mit Passwortlisten (Standardlisten wie rockyou.txt oder themenspezifische Listen).<br><strong>Empfehlung (Admin):</strong> Vermeiden Sie vorhersagbare Benutzernamen, insbesondere wenn sie einem bekannten Thema folgen.</p>
+            <div class="code-block">
+                 <div class="terminal">
+                     <pre>
+animetronic  +
+jumbotron    +
+mike         +
+jane         +
+abby         +
+steve        +
+garrett      +
+vanessa      +
+fazbear      +
+bonnie       +
+chica        +
+foxy         +
+max          +
+william      +
+hank         +
+jeremiah     +
+freddy       +
+waiter       +
+Chewy        +
+derp         +
+Mcstuffin    +
+mangle       +
+michael      +
+thomas       +
+amy          +
+felix        +
+elza         +
+karl      +
+brian   +
+jeremy       +
+linda        +
+ben   +
+vincent      +
+daniel       +
+fritz        +
+timmy        +
+henry
+                     </pre>
+                 </div>
+            </div>
+
+             <p class="analysis"><strong>Analyse:</strong> Ein erneuter `dirb`-Scan auf `http://animetronic.hmv/`, diesmal vermutlich wieder mit der Standard-Wortliste (`common.txt`).</p>
+             <p class="evaluation"><strong>Bewertung:</strong> Dieser Scan findet zusätzlich zu den bereits bekannten Verzeichnissen (`/css`, `/img`, `/js`) ein neues Verzeichnis: `/staffpages/`. Außerdem wird `/server-status` gefunden, der jedoch mit `403 Forbidden` antwortet (Zugriff verweigert).</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Das Verzeichnis `/staffpages/` ist ein vielversprechendes Ziel und sollte sofort genauer untersucht werden (z.B. mit `dirb http://animetronic.hmv/staffpages/` oder manuellem Browsing). `/server-status` ist eine Standard-Apache-Statusseite, die hier nicht zugänglich ist.<br><strong>Empfehlung (Admin):</strong> Schützen Sie sensible Verzeichnisse wie `/staffpages/` angemessen (z.B. durch Authentifizierung, Zugriffsbeschränkung auf bestimmte IPs). Deaktivieren oder sichern Sie die `/server-status`-Seite, wenn sie nicht benötigt wird.</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">dirb http://animetronic.hmv</span></div>
+                    <pre>
+
+-----------------
+DIRB v2.22
+By The Dark Raver
+-----------------
+
+START_TIME: Thu Dec 14 15:10:12 2023
+URL_BASE: http://animetronic.hmv/
+WORDLIST_FILES: /usr/share/dirb/wordlists/common.txt
+
+-----------------
+
+GENERATED WORDS: 4619
+
+---- Scanning URL: http://animetronic.hmv/ ----
+==> DIRECTORY: http://animetronic.hmv/staffpages/
+==> DIRECTORY: http://animetronic.hmv/img/
+==> DIRECTORY: http://animetronic.hmv/css/
++ http://animetronic.hmv/index.html (CODE:200|SIZE:2384)
+==> DIRECTORY: http://animetronic.hmv/js/
++ http://animetronic.hmv/server-status (CODE:403|SIZE:280)
+
+-----------------
+END_TIME: Thu Dec 14 15:10:17 2023
+DOWNLOADED: 4619 - FOUND: 5
+                    </pre>
+                </div>
+            </div>
+
+            <p class="analysis"><strong>Analyse:</strong> Das Tool `cupp` (Common User Passwords Profiler) wird im interaktiven Modus (`-i`) aufgerufen. Es fragt nach persönlichen Informationen über ein potenzielles Opfer (hier wird 'henry' als Vorname eingegeben), um daraus eine benutzerdefinierte Passwortliste zu generieren. Optionen wie das Hinzufügen von Sonderzeichen, Zahlen und Leet-Speak-Variationen werden aktiviert.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Cupp generiert eine Passwortliste (`henry.txt`) mit 3696 Einträgen, die auf dem Vornamen 'henry' und den aktivierten Variationen basiert. Dies ist ein Versuch, eine gezieltere Passwortliste als Standardlisten wie `rockyou.txt` zu erstellen.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Verwenden Sie die generierte Liste (`henry.txt`) in Brute-Force-Angriffen gegen den Benutzer 'henry', falls dieser als valider Benutzer bestätigt wird oder wenn keine anderen Passwörter funktionieren. Beachten Sie, dass der Erfolg von Cupp stark von der Verfügbarkeit und Korrektheit der eingegebenen Informationen abhängt.<br><strong>Empfehlung (Admin):</strong> Schulen Sie Benutzer darin, keine leicht ableitbaren persönlichen Informationen in ihren Passwörtern zu verwenden. Erzwingen Sie Passwortkomplexität.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">cupp -i</span></div>
+                     <pre>
+  ___________
+   cupp.py!                 # Common
+      \                     # User
+       \   ,__,             # Passwords
+        \  (oo)____         # Profiler
+           (__)    )\
+              ||--|| *      [ Muris Kurgas | j0rgan@remote-exploit.org ]
+                            [ Mebus | https://github.com/Mebus/]
+
+
+[+] Insert the information about the victim to make a dictionary
+[+] If you don't know all the info, just hit enter when asked! ;)
+
+> First Name: henry
+> Surname:
+> Nickname:
+> Birthdate (DDMMYYYY):
+
+
+> Partner's name:
+> Partner's nickname:
+> Partner's birthdate (DDMMYYYY):
+
+
+> Child's name:
+> Child's nickname:
+> Child's birthdate (DDMMYYYY):
+
+
+> Pet's name:
+> Company name:
+
+
+> Do you want to add some key words about the victim? Y/[N]:
+> Do you want to add special chars at the end of words? Y/[N]: y
+> Do you want to add some random numbers at the end of words? Y/[N]:y
+> Leet mode? (i.e. leet = 1337) Y/[N]: y
+
+[+] Now making a dictionary...
+[+] Sorting list and removing duplicates...
+[+] Saving dictionary to henry.txt, counting 3696 words.
+[+] Now load your pistolero with henry.txt and shoot! Good luck!
+                     </pre>
+                 </div>
+             </div>
+        </section>
+
+        <section id="initial-access">
+            <h2>Initial Access</h2>
+            <p class="analysis"><strong>Analyse:</strong> `hydra` wird erneut eingesetzt, diesmal um das SSH-Passwort für den Benutzer `michael` zu finden. `-l michael` gibt den Benutzernamen an, `-P michael.txt` verwendet eine (vermutlich zuvor anderweitig erstellte oder benannte) Passwortliste namens `michael.txt`. `-t 64` setzt die Anzahl der Threads wieder hoch.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Nach einiger Zeit ist Hydra erfolgreich! Es findet das Passwort `<span class="password">leahcim1996</span>` für den Benutzer `michael` auf dem SSH-Dienst. "leahcim" ist "michael" rückwärts geschrieben, und 1996 könnte ein Geburtsjahr oder ein anderer relevanter Bezug sein.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Fantastisch! Mit diesen Zugangsdaten (`michael`:`leahcim1996`) sollte nun der initiale Zugriff auf das System via SSH möglich sein. Der nächste logische Schritt ist `ssh michael@192.168.2.104`.<br><strong>Empfehlung (Admin):</strong> Das Passwort ist relativ schwach (rückwärts geschriebener Name + Jahr). Erzwingen Sie stärkere, nicht leicht ableitbare Passwörter. Implementieren Sie Account Lockout Policies und Intrusion Detection (z.B. `fail2ban`), um Brute-Force-Angriffe zu erschweren und zu erkennen.</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">hydra -l michael -P michael.txt ssh://192.168.2.104 -t 64</span></div>
+                    <pre>
+Hydra v9.5 (c) 2023 by van Hauser/THC & David Maciejak - Please do not use in military or secret service organizations, or for illegal purposes (this is non-binding, these *** ignore laws and ethics anyway).
+
+Hydra (https://github.com/vanhauser-thc/thc-hydra) starting at 2023-12-15 10:39:32
+[WARNING] Many SSH configurations limit the number of parallel tasks, it is recommended to reduce the tasks: use -t 4
+[WARNING] Restorefile (you have 10 seconds to abort... (use option -I to skip waiting)) from a previous session found, to prevent overwriting, ./hydra.restore
+[DATA] max 64 tasks per 1 server, overall 64 tasks, 17087 login tries (l:1/p:17087), ~267 tries per task
+[DATA] attacking ssh://192.168.2.104:22/
+[STATUS] 334.00 tries/min, 334 tries in 00:01h, 16785 to do in 00:51h, 32 active
+[STATUS] 233.00 tries/min, 699 tries in 00:03h, 16425 to do in 01:11h, 27 active
+[STATUS] 176.29 tries/min, 1234 tries in 00:07h, 15897 to do in 01:31h, 20 active
+[STATUS] 148.93 tries/min, 2234 tries in 00:15h, 14897 to do in 01:41h, 20 active
+[STATUS] 128.16 tries/min, 3973 tries in 00:31h, 13162 to do in 01:43h, 16 active
+[STATUS] 118.60 tries/min, 5574 tries in 00:47h, 11561 to do in 01:38h, 16 active
+[STATUS] 113.98 tries/min, 7181 tries in 01:03h, 9954 to do in 01:28h, 16 active
+[STATUS] 111.65 tries/min, 8820 tries in 01:19h, 8315 to do in 01:15h, 16 active
+[STATUS] 109.62 tries/min, 10414 tries in 01:35h, 6721 to do in 01:02h, 16 active
+[22][ssh] host: 192.168.2.104   login: michael   password: <span class="password">leahcim1996</span>
+1 of 1 target successfully completed, 1 valid password found
+Hydra finished at 2023-12-15 11:09:14
+                    </pre>
+                 </div>
+            </div>
+
+            <p class="analysis"><strong>Analyse:</strong> Der bereitgestellte Text enthält an dieser Stelle keinen Befehl oder keine Ausgabe, die den tatsächlichen SSH-Login als Benutzer `michael` zeigt. Der logische nächste Schritt nach dem erfolgreichen Hydra-Angriff wäre die Anmeldung mittels `ssh michael@192.168.2.104` und der Eingabe des gefundenen Passworts.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Da dieser Schritt fehlt, ist die Dokumentation des Initial Access unvollständig. Es wird davon ausgegangen, dass der Login erfolgreich war, da der Bericht zur Privilegieneskalation übergeht.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Dokumentieren Sie immer den erfolgreichen Login-Befehl und die erste Shell-Ausgabe nach Erhalt des initialen Zugriffs.<br><strong>Empfehlung (Admin):</strong> Überwachen Sie SSH-Logins genau, um unbefugte Zugriffe zu identifizieren.</p>
+
+        </section>
+
+        <section id="proof-of-concept">
+            <h2>Proof of Concept</h2>
+             <p class="analysis"><strong>Analyse:</strong> Der bereitgestellte Berichtstext enthält keine spezifischen Befehle oder Ausgaben, die den Übergang vom initialen Zugriff (als `michael`) zur vollständigen Kompromittierung (Root-Rechte) detailliert beschreiben. Daher kann kein konkreter Proof of Concept für die Privilegieneskalation erstellt werden, der auf dem vorliegenden Text basiert.</p>
+             <p class="evaluation"><strong>Bewertung:</strong> Das Fehlen der detaillierten Schritte zur Privilegieneskalation ist eine Lücke im Bericht. Ein POC dient normalerweise dazu, die Ausnutzung einer spezifischen Schwachstelle nachvollziehbar zu demonstrieren.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Dokumentieren Sie die für die Privilegieneskalation verwendeten Befehle, Skripte oder Exploits immer Schritt für Schritt, einschließlich der Ausgaben, um einen aussagekräftigen POC zu erstellen.<br><strong>Empfehlung (Admin):</strong> Auch ohne detaillierten POC sollte die Untersuchung darauf abzielen, die Schwachstelle zu finden, die die Privilegieneskalation ermöglicht hat (z.B. SUID-Binaries, fehlerhafte sudo-Regeln, Kernel-Exploits, Cronjobs, etc.).</p>
+            <!-- Hier würde normalerweise der detaillierte POC zur Privilegieneskalation stehen -->
+             <p class="comment">Anmerkung: Die spezifischen Schritte zur Privilegieneskalation wurden im bereitgestellten Text nicht dokumentiert.</p>
+        </section>
+
+        <section id="privilege-escalation">
+            <h2>Privilege Escalation</h2>
+            <p class="analysis"><strong>Analyse:</strong> Der Bericht enthält nur die Anmerkung "Privilege Escalation erfolgreich", ohne die dafür verwendeten Befehle oder Techniken zu zeigen.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Dies bestätigt, dass Root-Rechte erlangt wurden, aber die Methode bleibt undokumentiert. Für einen Audit-Bericht ist dies eine signifikante Lücke, da der Weg zur Kompromittierung nicht nachvollziehbar ist.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Dokumentieren Sie den gesamten Prozess der Privilegieneskalation, einschließlich der Enumeration nach dem Initial Access (z.B. `sudo -l`, `find / -perm -4000`, Suche nach Kernel-Exploits) und der erfolgreichen Ausnutzung.<br><strong>Empfehlung (Admin):</strong> Untersuchen Sie die möglichen Vektoren für Privilegieneskalation auf dem System (sudo-Konfiguration, SUID/SGID-Berechtigungen, Cronjobs, installierte Softwareversionen, Kernel-Version), um die vom Angreifer genutzte Schwachstelle zu identifizieren und zu beheben.</p>
+            <div class="code-block">
+                 <div class="terminal">
+                     <pre>
+     Privilege Escalation erfolgreich
+                     </pre>
+                 </div>
+            </div>
+        </section>
+
+        <section id="flags">
+             <!-- Flag-Container für Zentrierung und Styling -->
+            <div class="flag-container">
+                <h2 class="flag-heading">Flags</h2>
+                <p class="comment">Anmerkung: Die Befehle zum Auslesen der Flags (`cat user.txt`, `cat root.txt`) wurden im bereitgestellten Text nicht gezeigt, nur das Endergebnis.</p>
+                <!-- User Flag Eintrag -->
+                <div class="flag-entry">
+                    <div class="flag-command">cat user.txt</div> <!-- Befehl angenommen -->
+                    <div class="flag-value"><span class="password">0833990328464efff1de6cd93067cfb7</span></div>
+                </div>
+
+                <!-- Root Flag Eintrag -->
+                <div class="flag-entry">
+                    <div class="flag-command">cat root.txt</div> <!-- Befehl angenommen -->
+                    <div class="flag-value"><span class="password">153a1b940365f46ebed28d74f142530f280a2c0a</span></div>
+                </div>
+            </div>
+        </section>
+ 
+    <footer class="footer">
+        <p>DarkSpirit - Cyber Security Reports</p>
+        <!-- Datum extrahiert aus der ersten Nmap/Nikto Zeitangabe -->
+        <p>Berichtsdatum: 2023-12-11</p>
+    </footer>
+</body>
+</html>
